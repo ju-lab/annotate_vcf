@@ -2,20 +2,20 @@ import subprocess
 import shlex
 import argparse
 import re
-
+import os 
 def argument_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input_vcf', required=True, help='Input vcf or vcf.gz file to be annotated with VEP')
-
+    parser.add_argument('-o', '--output_dir', required=False, default=os.getcwd(), help='Output directory')
     args = vars(parser.parse_args())
     
-    return args['input_vcf']
+    return args['input_vcf'], args['output_dir']
 
-def outputfile(vcffile):
+def outputfile(vcffile, output_dir):
     if vcffile.endswith('vcf.gz'):
-        outputfile = re.sub(string=vcffile, pattern=r'vcf.gz$', repl='vep.vcf')
+        outputfile = os.path.join(output_dir, os.path.basename(re.sub(string=vcffile, pattern=r'vcf.gz$', repl='vep.vcf')))
     elif vcffile.endswith('vcf'):
-        outputfile = re.sub(string=vcffile, pattern=r'vcf$', repl='vep.vcf')
+        outputfile = os.path.join(output_dir, os.path.basename(re.sub(string=vcffile, pattern=r'vcf$', repl='vep.vcf')))
     else:
         print('Input must be a file that has a suffix of vcf or vcf.gz')
         raise ValueError
@@ -40,10 +40,10 @@ def bgzip_tabix(annotated_vcf):
     return 0
 
 def main():
-    input_vcf = argument_parser()
+    input_vcf, output_dir = argument_parser()
     
     # prepare annotated output file path 
-    annotated_vcf = outputfile(input_vcf)
+    annotated_vcf = outputfile(input_vcf, output_dir)
     # run VEP
     vep_annotate(input_vcf, annotated_vcf)
     # bgzip and tabix output vcf
