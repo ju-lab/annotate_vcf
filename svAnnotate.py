@@ -4,6 +4,7 @@ import pysam
 import os, sys
 import random
 import subprocess, shlex
+import argparse
 # to allow vep to annotate ALT column cannot be in SV annotation format in vcf. Change it to SNV annotation so that I can still utilize VEP's annotation
 
 
@@ -53,6 +54,13 @@ class Position():
         end = int(position_string.split(':')[1].split('-')[1])
         return Position(chromosome, start, end)
 
+    @staticmethod
+    def check_format(genomicPositionString):
+        if re.search(r'[A-Za-z1-9]+:[0-9]+-[0-9]+', genomicPositionString):
+            return True
+        else:
+            return False
+
 
 def get_canonical_annotation(long_annotation_string):
     '''vep output gives multiple annotations for a given loci, one is often only interested in the canonical sites
@@ -85,12 +93,18 @@ def get_vep_annotation(genomic_position, reference_fasta):
     with gzip.open(vep_vcf, 'rt') as f:
         for line in f:
             if not line.startswith('#'):
-                annotation = line.strip().split()[7].split('=')[1]
+                annotation = line.strip().split()[7].split('CSQ=')[1]
                 # multiple annotations per variant, now need to find which one is the canonical
                 canonical_annotation = get_canonical_annotation(annotation)
-                print(canonical_annotation) 
-
+    cleanup([vep_vcf, vep_vcf + '.tbi', temp_vcf])
     return canonical_annotation
+
+def cleanup(fileList):
+    '''list of files to clean up after done getting the annotation'''
+    for afile in fileList:
+        subprocess.call(shlex.split('rm -rf ' + afile))
+
+    return 0
 
 def make_temp_variant(genomic_position, reference_fasta):
     '''make a temporary VCF line that will be used as an input for VEP command'''
@@ -120,32 +134,69 @@ def write_temp_vcf(genomic_position, reference_fasta, temp_dir='.'):
 
 
 def sv_annotation(bp1_position, bp2_position, reference_fasta):
-    bp1_canonical = get_vep_annotation(bp1_position, reference_fasta)
-    bp2_canonical = get_vep_annotation(bp2_position, reference_fasta)
+    try:
+        bp1_canonical = get_vep_annotation(bp1_position, reference_fasta)
+        bp2_canonical = get_vep_annotation(bp2_position, reference_fasta)
 
-    print(bp1_canonical.split('|')[3], bp1_canonical.split('|')[35], bp1_canonical.split('|')[8], bp1_canonical.split('|')[9])
-    print(bp2_canonical.split('|')[3], bp2_canonical.split('|')[35], bp2_canonical.split('|')[8], bp2_canonical.split('|')[9])
+        bp1_intersect_gene = bp1_canonical.split('|')[3]
+        bp1_nearest_gene =  bp1_canonical.split('|')[35]
+        bp1_exon = bp1_canonical.split('|')[8]
+        bp1_intron =  bp1_canonical.split('|')[9]
+        bp1_consequence = annotation_consequence_adjust(bp1_canonical.split('|')[1])
+        bp1_strand = bp1_canonical.split('|')[20]
 
-sv_annotation(sys.argv[1], sys.argv[2], '/home/users/data/01_reference/human_g1k_v37/human_g1k_v37.fasta')
+        bp2_intersect_gene = bp2_canonical.split('|')[3]
+        bp2_nearest_gene =  bp2_canonical.split('|')[35]
+        bp2_exon = bp2_canonical.split('|')[8]
+        bp2_intron =  bp2_canonical.split('|')[9]
+        bp2_consequence = annotation_consequence_adjust(bp2_canonical.split('|')[1])
+        bp2_strand = bp2_canonical.split('|')[20]
+        return ( '|'.join([bp1_intersect_gene, bp1_strand, bp1_exon, bp1_intron, bp1_consequence, bp1_nearest_gene]), '|'.join([bp2_intersect_gene, bp2_strand, bp2_exon, bp2_intron, bp2_consequence, bp2_nearest_gene]))
+
+    except IndexError:
+        print(bp1_canonical)
+        print(bp1_canonical.split('|'))
+        print(len(bp1_canonical.split('|')))
+        print(bp2_canonical)
+        print(bp2_canonical.split('|'))
+        print(len(bp2_canonical.split('|')))
+        print('exiting...')
+        sys.exit()
 
 
 
-'''
+def annotation_consequence_adjust(consequence):
+    '''since we introduced an arbitrary point mutation to get the SV annotation from VEP, 
+    consequences such as missense, stop_lost, stop_gain, are arbitrary as well'''
+    if re.search(r'intergenic_variant', consequence):
+        return 'intergenic_variant'
+    elif re.search(r'intron_variant', consequence):
+        return 'intron_variant'
+    elif re.search(r'upstream_gene_variant', consequence):
+        return 'upstream_gene_variant'
+    elif re.search(r'downstream_gene_variant', consequence):
+        return 'downstream_gene_variant'
+    elif re.search(r'missense_variant|stop', consequence):
+        return 'exonic_variant'
+    else:
+        return consequence
 
-input_vcf = sys.argv[1]
-output_vcf = 'test.out'
-with open(output_vcf, 'w') as g:
-    with open(input_vcf, 'r') as f:
-        for line in f:
-            if not line.startswith('#'):
-                bases = ['A', 'T', 'G', 'C']
-                CHROM, POS, ID, REF, ALT, *args = line.split('\t')
-                bases.remove(REF[0])
-                
-                changed_base = random.choice(bases)
-                g.write(CHROM + '\t' + POS + '\t' + ID + '\t' + REF + '\t' + changed_base + '\t' + '\t'.join(args) + '\n')
-            else:
-                # if header, then just write without modification
-                g.write(line)
+def argument_parser():
+    parser = argparse.ArgumentParser(description='finds the gene overlapping/closest to the breakpoints involved in structural variations')
+    parser.add_argument('breakpoints', nargs=2, help='two breakpoints separated by a space')
+    args = vars(parser.parse_args())
+    return args['breakpoints'][0], args['breakpoints'][1]
 
-'''
+def main():
+    bp1, bp2 = argument_parser()
+    if Position.check_format(bp1) and Position.check_format(bp2):
+        svanno = sv_annotation(bp1, bp2, '/home/users/data/01_reference/human_g1k_v37/human_g1k_v37.fasta')
+        print(svanno)
+    else:
+        sys.exit()
+
+
+if __name__=='__main__':
+    main()
+
+

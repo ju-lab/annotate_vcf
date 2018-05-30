@@ -22,11 +22,14 @@ def outputfile(vcffile, output_dir):
 
     return outputfile 
 
-def vep_annotate(input_vcf, annotated_vcf):
+def vep_annotate(input_vcf, annotated_vcf, display=False):
     ''' if you want single annotation then use --per_gene option'''
 
     cmd = f'/home/users/cjyoon/ensembl-vep/vep --sift b --ccds --uniprot --hgvs --symbol --numbers --domains --gene_phenotype --canonical --protein --biotype --uniprot --tsl --pubmed --variant_class --shift_hgvs 1 --check_existing --total_length --allele_number --no_escape --xref_refseq --failed 1 --vcf --flag_pick_allele --pick_order canonical,tsl,biotype,rank,ccds,length  --offline --no_progress --no_stats  --polyphen b  --regulatory --af --af_1kg --af_gnomad --af_esp --max_af -i {input_vcf} -o {annotated_vcf} --force_overwrite --nearest symbol'
-    print(cmd)
+
+    if display==True:
+        print(cmd)
+
     vep_cmd = subprocess.Popen(shlex.split(cmd))
     vep_cmd.wait()
     return 0
