@@ -49,11 +49,17 @@ class Position():
 
     @classmethod
     def fromstring(cls, position_string):
-        chromosome = position_string.split(':')[0]
-        start = int(position_string.split(':')[1].split('-')[0])
-        end = int(position_string.split(':')[1].split('-')[1])
-        return Position(chromosome, start, end)
-
+        if isinstance(position_string, str):
+            chromosome = position_string.split(':')[0]
+            start = int(position_string.split(':')[1].split('-')[0])
+            end = int(position_string.split(':')[1].split('-')[1])
+            return Position(chromosome, start, end)
+        elif isinstance(position_string, Position):
+            return position_string
+        else:
+            print('position_string has to be either a string class or Position class')
+            raise TypeError
+            
     @staticmethod
     def check_format(genomicPositionString):
         if re.search(r'[A-Za-z1-9]+:[0-9]+-[0-9]+', genomicPositionString):
@@ -61,6 +67,34 @@ class Position():
         else:
             return False
 
+    @staticmethod
+    def overlap(position1, position2):
+        '''true if position1 and position2 has more than 1 overlapping base'''
+        try:
+            if isinstance(position1, Position) and isinstance(position2, Position):
+                if position1.chromosome == position2.chromosome:
+                    if min(position1.end, position2.end) > max (position1.start, position2.start):
+                        return True
+                    else:
+                        return False
+                else:
+                    return False  # cannot compare if two positions are in different chromosome
+            else:
+                return None # has to be Posiiton class.
+        except:
+            Exception
+
+    def extend(self, direction, basepairs):
+        """extends objects in by specified base pairs, either upstream, downstream, or both"""
+        if direction=="up":
+            return Position(self.chromosome, max(0, self.start-basepairs), end)
+        elif direction=="down":
+            return Position(self.chromosome, self.start, self.end + basepairs)
+        elif direction=="both":
+            return Position(self.chromosome, max(0, self.start - basepairs), self.end + basepairs)
+        else:
+            print('direction has to be either up, down, or both')
+            raise ValueError
 
 def get_canonical_annotation(long_annotation_string):
     '''vep output gives multiple annotations for a given loci, one is often only interested in the canonical sites
@@ -176,7 +210,7 @@ def annotation_consequence_adjust(consequence):
         return 'upstream_gene_variant'
     elif re.search(r'downstream_gene_variant', consequence):
         return 'downstream_gene_variant'
-    elif re.search(r'missense_variant|stop', consequence):
+    elif re.search(r'missense_variant|synonymous_variant|stop', consequence):
         return 'exonic_variant'
     else:
         return consequence
