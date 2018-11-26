@@ -84,8 +84,8 @@ def tidy_annotation(input_vcf, output_dir, sampleName):
         for variant in vcfHandle:
             # ger VAF
             if 'FA' in variant.FORMAT: 
-                vaf = variant.format('FA')[tumor_column][0] # this works when VCF is from Mutect
                 tumor_column = identify_tumor_column(input_vcf, sampleName)
+                vaf = variant.format('FA')[tumor_column][0] # this works when VCF is from Mutect
             elif 'AU' in variant.FORMAT: 
                 vaf = strelka_vaf(variant)
             elif 'TIR' in variant.FORMAT:
@@ -99,12 +99,13 @@ def tidy_annotation(input_vcf, output_dir, sampleName):
 
             is_canonical_present=False
             try:
+                # nearest added 2018.07.15
                 annotation = find_canonical_annotation(variant.INFO['CSQ'])
                 Allele, Consequence, IMPACT, SYMBOL, Gene, Feature_type, Feature, BIOTYPE, \
                 EXON, INTRON, HGVSc, HGVSp, cDNA_position, CDS_position, Protein_position, \
                 Amino_acids, Codons, Existing_variation, ALLELE_NUM, DISTANCE, STRAND, FLAGS, \
                 PICK, VARIANT_CLASS, SYMBOL_SOURCE, HGNC_ID, CANONICAL, TSL, CCDS, ENSP, \
-                SWISSPROT, TREMBL, UNIPARC, RefSeq, GENE_PHENO, SIFT, PolyPhen, DOMAINS, \
+                SWISSPROT, TREMBL, UNIPARC, RefSeq, GENE_PHENO, NEAREST, SIFT, PolyPhen, DOMAINS, \
                 HGVS_OFFSET, AF, AFR_AF, AMR_AF, EAS_AF, EUR_AF, SAS_AF, AA_AF, EA_AF, \
                 gnomAD_AF, gnomAD_AFR_AF, gnomAD_AMR_AF, gnomAD_ASJ_AF, gnomAD_EAS_AF, \
                 gnomAD_FIN_AF, gnomAD_NFE_AF, gnomAD_OTH_AF, gnomAD_SAS_AF, MAX_AF, \

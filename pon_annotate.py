@@ -14,7 +14,7 @@ import cyvcf2
 def argument_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input', required=True, help='Input vcf to be annotated with panel of normal')
-    parser.add_argument('-r', '--reference',  help='Reference fasta', default='/home/users/data/01_reference/human_g1k_v37/human_g1k_v37.fasta', nargs='+')
+    parser.add_argument('-r', '--reference',  help='Reference fasta', default='/home/users/cjyoon/reference/GRCh37/human_g1k_v37.fasta')
 
     parser.add_argument('-n', '--normal_bams', help='Normal Bams to calculate panel of normal VAFS', nargs='+')
     parser.add_argument('-o', '--output_dir', required=False, default=os.getcwd(), help='Output directory')
@@ -26,17 +26,15 @@ def argument_parser():
 def calculate_vaf(normal_bam_list, query_position, reference):
 	'''calculates the VAF in the normal Bams in the list of a given query_position'''
 	bamlistString = '\t'.join(normal_bam_list)
-	cmd = f'samtools mpileup -f {reference} -r {query_position} {bamlistString}'
+	cmd = f'samtools mpileup -Q 0 -q 0 -f {reference} -r {query_position} {bamlistString}'
 	mpileup = subprocess.check_output(shlex.split(cmd), stderr=subprocess.DEVNULL)
-	split_mpileup = mpileup.decode("utf-8").split('\t')
-
-
+	split_mpileup = mpileup.decode("utf-8").split('\t'); print(split_mpileup)
 	totalDepth = 0 
 	mismatches = 0
 	totalCharacters = 0
 	for i in range(0, int(len(split_mpileup)/3) -1 ):
 		bases = 3*i + 1
-		depths = 3*i
+		depths = 3*i + 3
 		totalDepth += int(split_mpileup[depths])
 		baseAStringCount = split_mpileup[bases].upper().count('A')
 		baseTStringCount = split_mpileup[bases].upper().count('T')
@@ -45,7 +43,7 @@ def calculate_vaf(normal_bam_list, query_position, reference):
 		mismatchCount = baseAStringCount + baseTStringCount + baseGStringCount + baseCStringCount
 		mismatches += mismatchCount
 
-	return round(float(mismatches/totalDepth), 3)
+	return round(float(mismatches/totalDepth), 3), totalDepth, mismatches
 
 def main():
     vcf, normal_bams, output_dir, reference = argument_parser()
@@ -53,15 +51,21 @@ def main():
     vcf_handle = cyvcf2.VCF(vcf)
     vcf_handle.add_info_to_header({'ID': 'PON_VAF', 'Description': 'VAF in Panel of Normals',
     'Type':'Float', 'Number': '1'})
+    vcf_handle.add_info_to_header({'ID': 'PON_DEPTH', 'Description': 'Total depth in Panel of Normals',
+    'Type':'Float', 'Number': '1'})
+    vcf_handle.add_info_to_header({'ID': 'PON_VC', 'Description': 'Total variant read count in Panel of Normals',
+    'Type':'Float', 'Number': '1'})
 
     output_vcf = os.path.join(output_dir, re.sub(r'.vcf$', '.pon.vcf', os.path.basename(vcf)))
 
     output_handle = cyvcf2.Writer(output_vcf, vcf_handle)
     for variant in vcf_handle:
-    	variant_position = f'{variant.CHROM}:{variant.POS}-{variant.POS}'
-    	pon_vafs =  calculate_vaf(normal_bams, variant_position, reference)
-    	variant.INFO['PON_VAF'] = str(pon_vafs)
-    	output_handle.write_record(variant)
+        variant_position = f'{variant.CHROM}:{variant.POS}-{variant.POS}'
+        pon_vafs, total_depths, mismatches =  calculate_vaf(normal_bams, variant_position, reference)
+        variant.INFO['PON_VAF'] = str(pon_vafs)
+        variant.INFO['PON_DEPTH'] = str(total_depths)
+        variant.INFO['PON_VC'] = str(mismatches)
+        output_handle.write_record(variant)
 
 
 if __name__=='__main__':
