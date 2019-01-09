@@ -28,7 +28,7 @@ def calculate_vaf(normal_bam_list, query_position, reference):
 	bamlistString = '\t'.join(normal_bam_list)
 	cmd = f'samtools mpileup -Q 0 -q 0 -f {reference} -r {query_position} {bamlistString}'
 	mpileup = subprocess.check_output(shlex.split(cmd), stderr=subprocess.DEVNULL)
-	split_mpileup = mpileup.decode("utf-8").split('\t'); print(split_mpileup)
+	split_mpileup = mpileup.decode("utf-8").split('\t'); #print(split_mpileup)
 	totalDepth = 0 
 	mismatches = 0
 	totalCharacters = 0

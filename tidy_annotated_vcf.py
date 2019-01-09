@@ -73,6 +73,15 @@ def strelka_vaf(variant):
     else:
         return 0 # if coverage is 0 then, this is meaningless
 
+def freebayes_germline_vaf(variant):
+    """takes cyvcf2 variant class info for freebayes vcf and calculates VAF
+    NOT designed for somatic"""
+    ref_cnt = (variant.format('RO')[0][0])
+    alt_cnt = (variant.format('AO')[0][0])
+    total_cnt = ref_cnt + alt_cnt
+
+    return alt_cnt / total_cnt
+
 
 def tidy_annotation(input_vcf, output_dir, sampleName):
     vcfHandle = cyvcf2.VCF(input_vcf)
@@ -91,6 +100,9 @@ def tidy_annotation(input_vcf, output_dir, sampleName):
             elif 'TIR' in variant.FORMAT:
                 # Strelka Indel
                 vaf = variant.format('TIR')[1][0] / variant.format('DP')[1][0]
+            elif 'RO' in variant.FORMAT:
+                # Freebayes germline
+                vaf = freebayes_germline_vaf(variant)
             else:
                 print('This form of VCF is not yet supported. Use either Strelka2 or Mutect VCF')
                 print('Exiting...')
